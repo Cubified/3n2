@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
+#include <dirent.h>
 #include <termios.h>
 #include <signal.h>
 
@@ -21,7 +21,9 @@ enum {
   mode_search
 };
 
-int mode = mode_view;
+int mode = mode_view,
+    indx = 0,
+    ndir = 0;
 struct termios tio, tio_raw;
 
 /*
@@ -41,6 +43,21 @@ void end();
  */
 
 void put(){
+  DIR *dir;
+  struct dirent *ent;
+
+  ndir = 0;
+  dir = opendir(".");
+
+  printf("\x1b[2J\x1b[0H");
+  while((ent=readdir(dir))){
+    ndir++;
+    printf("%s\n", ent->d_name);
+  }
+  printf("\x1b[%i;1H", indx+1);
+  fflush(stdout);
+
+  closedir(dir);
 }
 
 void raw(){
@@ -72,8 +89,12 @@ void run(){
            buf[1] == '['){
           switch(buf[2]){
             case 'A': /* Up */
+              if(indx > 0) indx--;
+              put();
               break;
             case 'B': /* Down */
+              if(indx < ndir) indx++;
+              put();
               break;
             case 'C': /* Right */
               break;
