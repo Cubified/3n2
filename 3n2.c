@@ -17,13 +17,21 @@
  */
 
 enum {
-  mode_view,
-  mode_search
+  view,
+  search
 };
 
-int mode = mode_view,
+enum {
+  full,
+  line
+};
+
+int mode = view,
     indx = 0,
+    prev = 0,
     ndir = 0;
+char *cwd = ".",
+     *files[16];
 struct termios tio, tio_raw;
 
 /*
@@ -42,22 +50,29 @@ void end();
  * BODIES
  */
 
-void put(){
+void put(int type){
   DIR *dir;
   struct dirent *ent;
 
-  ndir = 0;
-  dir = opendir(".");
+  if(type == full){
+    ndir = 0;
+    dir = opendir(cwd);
 
-  printf("\x1b[2J\x1b[0H");
-  while((ent=readdir(dir))){
-    ndir++;
-    printf("%s\n", ent->d_name);
+    printf("\x1b[2J\x1b[0H\x1b[?25l");
+    while((ent=readdir(dir))){
+      if(ent->d_name[0] == '.') continue;
+      files[ndir] = strdup(ent->d_name); /* TODO: Memleak */
+      ndir++;
+      printf("%s\n", ent->d_name);
+    }
+    printf("\x1b[%i;1H\x1b[30;47m%s\x1b[0m", indx+1, files[indx]);
+    fflush(stdout);
+
+    closedir(dir);
+  } else if(type == line){
+    printf("\x1b[%i;1H\x1b[0m%s\x1b[%i;1H\x1b[30;47m%s\x1b[0m", prev+1, files[prev], indx+1, files[indx]);
+    fflush(stdout);
   }
-  printf("\x1b[%i;1H", indx+1);
-  fflush(stdout);
-
-  closedir(dir);
 }
 
 void raw(){
@@ -70,8 +85,8 @@ void raw(){
 void mod(int newmode){
   mode = newmode;
   
-  if(newmode == mode_view){
-  } else if(newmode == mode_search){
+  if(newmode == view){
+  } else if(newmode == search){
     ledit("search: ", 8);
   }
 }
@@ -89,12 +104,18 @@ void run(){
            buf[1] == '['){
           switch(buf[2]){
             case 'A': /* Up */
-              if(indx > 0) indx--;
-              put();
+              if(indx > 0){
+                prev = indx;
+                indx--;
+                put(line);
+              }
               break;
             case 'B': /* Down */
-              if(indx < ndir) indx++;
-              put();
+              if(indx < ndir-1){
+                prev = indx;
+                indx++;
+                put(line);
+              }
               break;
             case 'C': /* Right */
               break;
@@ -106,7 +127,7 @@ void run(){
         }
         break;
       case '/': /* Search */
-        mod(mode_search);
+        mod(search);
         break;
     } 
   }
@@ -114,6 +135,8 @@ void run(){
 
 void end(){
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
+
+  printf("\x1b[?25h\n");
 
   exit(0);
 }
@@ -127,7 +150,7 @@ int main(){
   signal(SIGQUIT, end);
   signal(SIGINT,  end);
 
-  put();
+  put(full);
   raw();
   run();
   end();
