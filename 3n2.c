@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <termios.h>
 #include <signal.h>
+#include <limits.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
@@ -22,6 +23,12 @@
  * GLOBAL VARIABLES
  * AND ENUMS
  */
+
+#define SZFL_INIT 64
+
+#define DIRECTORY "\x1b[36m"
+#define EXECUTABLE "\x1b[32m"
+#define REGULAR "\x1b[0m"
 
 enum {
   view,
@@ -41,6 +48,7 @@ enum {
 };
 
 typedef struct {
+  char *fmt;
   char *name;
   struct stat *stat;
 } file;
@@ -48,9 +56,10 @@ typedef struct {
 int mode = view,
     indx = 0,
     prev = 0,
-    ndir = 0;
-char cwd[256];
-file *files[64];
+    ndir = 0,
+    szfl = SZFL_INIT;
+char cwd[PATH_MAX];
+file **files;
 struct termios tio, tio_raw;
 struct winsize ws;
 
@@ -59,6 +68,7 @@ struct winsize ws;
  * DEFINITIONS
  */
 
+void gen();
 void put();
 void raw();
 void mod();
@@ -70,6 +80,20 @@ void end();
  * FUNCTION
  * BODIES
  */
+
+void gen(file **f, struct dirent *ent, struct stat *sb){
+  *f = malloc(sizeof(file));
+  (*f)->name = strdup(ent->d_name);
+  (*f)->stat = sb;
+  if(S_ISDIR(sb->st_mode)){
+    (*f)->fmt = DIRECTORY;
+    strcat((*f)->name, "/");
+  } else if(sb->st_mode & 0100){
+    (*f)->fmt = EXECUTABLE;
+  } else {
+    (*f)->fmt = REGULAR;
+  }
+}
 
 void put(int type){
   int i;
@@ -84,26 +108,26 @@ void put(int type){
     ndir = 0;
     dir = opendir(cwd);
 
-    memset(files, '\0', sizeof(files));
-
     fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
     while((ent=readdir(dir))){
       if(ent->d_name[0] == '.') continue;
+      if(ndir > szfl) files = realloc(files, (szfl=ndir*2));
+
       sprintf(tmp, "%s/%s", cwd, ent->d_name);
       sb = malloc(sizeof(struct stat));
       stat(tmp, sb);
-      files[ndir] = malloc(sizeof(file));
-      files[ndir]->name = strdup(ent->d_name);
-      files[ndir]->stat = sb;
+      gen(&files[ndir], ent, sb);
+
+      fputs(files[ndir]->fmt, stdout);
+      puts(files[ndir]->name);
       ndir++;
-      puts(ent->d_name);
     }
-    printf("\x1b[%i;1H\x1b[30;47m%s\x1b[0m", indx+1, files[indx]->name);
+    printf("\x1b[%i;1H%s\x1b[7m%s\x1b[0m", indx+1, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
 
     closedir(dir);
   } else if(type == line){
-    printf("\x1b[%i;1H\x1b[0m%s\x1b[%i;1H\x1b[30;47m%s\x1b[0m", prev+1, files[prev]->name, indx+1, files[indx]->name);
+    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m", prev+1, files[prev]->fmt, files[prev]->name, indx+1, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
   } else {
     indx = 0;
@@ -115,7 +139,7 @@ void put(int type){
         puts(files[i]->name);
       }
     }
-    printf("\x1b[%i;1H", ws.ws_row); // TODO: search not disolaying correctly because of 2J, better search etc.
+    printf("\x1b[%i;1H", ws.ws_row);
     fflush(stdout);
   }
 }
@@ -130,6 +154,8 @@ void raw(){
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
 
   realpath(".", cwd);
+
+  files = malloc(szfl*sizeof(file));
 }
 
 void mod(int newmode){
@@ -220,11 +246,14 @@ void run(){
 
 void end(){
   int i;
-  for(i=0;i<ndir;i++){
-    free(files[i]->name);
-    free(files[i]->stat);
+  for(i=0;i<szfl;i++){
+    if(i < ndir){
+      free(files[i]->name);
+      free(files[i]->stat);
+    }
     free(files[i]);
   }
+  free(files);
 
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
 
