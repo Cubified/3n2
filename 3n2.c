@@ -58,7 +58,6 @@ int mode = view,
     prev = 0,
     ndir = 0,
     szfl = SZFL_INIT;
-char cwd[PATH_MAX];
 file **files;
 struct termios tio, tio_raw;
 struct winsize ws;
@@ -81,14 +80,15 @@ void end();
  * BODIES
  */
 
-void gen(file **f, struct dirent *ent, struct stat *sb){
+void gen(file **f, struct dirent *ent){
   *f = malloc(sizeof(file));
   (*f)->name = strdup(ent->d_name);
-  (*f)->stat = sb;
-  if(S_ISDIR(sb->st_mode)){
+  (*f)->stat = malloc(sizeof(struct stat));
+  stat(ent->d_name, (*f)->stat);
+  if(S_ISDIR((*f)->stat->st_mode)){
     (*f)->fmt = DIRECTORY;
     strcat((*f)->name, "/");
-  } else if(sb->st_mode & 0100){
+  } else if((*f)->stat->st_mode & 0100){
     (*f)->fmt = EXECUTABLE;
   } else {
     (*f)->fmt = REGULAR;
@@ -100,23 +100,19 @@ void put(int type){
   char tmp[256];
   DIR *dir;
   struct dirent *ent;
-  struct stat *sb;
 
   if(type == full){
     indx = 0;
     prev = 0;
     ndir = 0;
-    dir = opendir(cwd);
+    dir = opendir(".");
 
     fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
     while((ent=readdir(dir))){
       if(ent->d_name[0] == '.') continue;
       if(ndir > szfl) files = realloc(files, (szfl=ndir*2));
 
-      sprintf(tmp, "%s/%s", cwd, ent->d_name);
-      sb = malloc(sizeof(struct stat));
-      stat(tmp, sb);
-      gen(&files[ndir], ent, sb);
+      gen(&files[ndir], ent);
 
       fputs(files[ndir]->fmt, stdout);
       puts(files[ndir]->name);
@@ -153,8 +149,6 @@ void raw(){
 
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
 
-  realpath(".", cwd);
-
   files = malloc(szfl*sizeof(file));
 }
 
@@ -177,16 +171,14 @@ void mod(int newmode){
 
 void dir(int way){
   char tmp[256];
-  
-  strcpy(tmp, cwd);
-  strcat(tmp, "/");
-  strcat(tmp, (way == up ? files[indx]->name : ".."));
-  if(way == down ||
-     S_ISDIR(files[indx]->stat->st_mode)){
-    if(strlen(tmp) >= sizeof(cwd)) realpath(tmp, cwd);
-    else strcpy(cwd, tmp);
-    put(full);
-  }
+
+  if(way == down){
+    chdir("..");
+  } else if(S_ISDIR(files[indx]->stat->st_mode)){
+    chdir(files[indx]->name);
+  } else return;
+
+  put(full);
 }
 
 void run(){
