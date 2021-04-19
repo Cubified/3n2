@@ -27,6 +27,7 @@
   } while(0)
 #define redraw(is_final) \
   do { \
+    LEDIT_HIGHLIGHT(is_final); \
     printf("\x1b[0m\x1b[0G\x1b[2K%s%s", prompt, out); \
     printf("\x1b[%iG", prompt_len+cur+nread+1); \
     fflush(stdout); \
@@ -57,6 +58,8 @@ int history_len = 1, /* Size of allocated array */
     history_pos = 0, /* Current entry while scrolling through history */
     out_len = 0,
     cur = 0;
+
+void LEDIT_HIGHLIGHT();
 
 char *ledit(char *prompt, int prompt_len){
   char buf[LEDIT_MAXLEN];
