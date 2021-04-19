@@ -30,6 +30,8 @@
 #define EXECUTABLE "\x1b[32m"
 #define REGULAR "\x1b[0m"
 
+#define CLEAN(f) free(f->name);free(f->stat);free(f)
+
 enum {
   view,
   search
@@ -96,12 +98,12 @@ void gen(file **f, struct dirent *ent){
 }
 
 void put(int type){
-  int i;
-  char tmp[256];
+  int i, oldndir;
   DIR *dir;
   struct dirent *ent;
 
   if(type == full){
+    oldndir = ndir;
     indx = 0;
     prev = 0;
     ndir = 0;
@@ -111,6 +113,10 @@ void put(int type){
     while((ent=readdir(dir))){
       if(ent->d_name[0] == '.') continue;
       if(ndir > szfl) files = realloc(files, (szfl=ndir*2));
+
+      if(ndir < oldndir){
+        CLEAN(files[ndir]);
+      }
 
       gen(&files[ndir], ent);
 
@@ -170,8 +176,6 @@ void mod(int newmode){
 }
 
 void dir(int way){
-  char tmp[256];
-
   if(way == down){
     chdir("..");
   } else if(S_ISDIR(files[indx]->stat->st_mode)){
@@ -187,6 +191,8 @@ void run(){
   while((num=read(STDIN_FILENO, buf, sizeof(buf))) != 0){
     switch(buf[0]){
       case '\n':
+        dir(up);
+        break;
       case 'q':
         end();
         break;
