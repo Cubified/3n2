@@ -211,7 +211,7 @@ shutdown:;
     history_len *= 2;
     history = realloc(history, sizeof(char*)*history_len);
   }
-  printf("\x1b[0m\n");
+  printf("\x1b[0m");
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
 
   return out;

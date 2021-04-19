@@ -4,6 +4,10 @@
  * TODO:
  *  - Viewport (scrolling)
  *  - Moving during search
+ *  - Return value
+ *  - Preview
+ *  - Column view
+ *  - Sorting
  */
 
 #include <stdio.h>
@@ -26,9 +30,9 @@
 
 #define SZFL_INIT 64
 
-#define DIRECTORY "\x1b[36m"
-#define EXECUTABLE "\x1b[32m"
-#define REGULAR "\x1b[0m"
+#define DIRECTORY "\x1b[36m "
+#define EXECUTABLE "\x1b[32m "
+#define REGULAR "\x1b[0m "
 
 #define CLEAN(f) free(f->name);free(f->stat);free(f)
 
@@ -99,6 +103,7 @@ void gen(file **f, struct dirent *ent){
 
 void put(int type){
   int i, oldndir;
+  char cwd[PATH_MAX];
   DIR *dir;
   struct dirent *ent;
 
@@ -108,8 +113,11 @@ void put(int type){
     prev = 0;
     ndir = 0;
     dir = opendir(".");
+    getcwd(cwd, sizeof(cwd));
 
     fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
+    puts(cwd);
+    puts("");
     while((ent=readdir(dir))){
       if(ent->d_name[0] == '.') continue;
       if(ndir > szfl) files = realloc(files, (szfl=ndir*2));
@@ -124,20 +132,21 @@ void put(int type){
       puts(files[ndir]->name);
       ndir++;
     }
-    printf("\x1b[%i;1H%s\x1b[7m%s\x1b[0m", indx+1, files[indx]->fmt, files[indx]->name);
+    printf("\x1b[%i;1H%s\x1b[7m%s\x1b[0m", indx+3, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
 
     closedir(dir);
   } else if(type == line){
-    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m", prev+1, files[prev]->fmt, files[prev]->name, indx+1, files[indx]->fmt, files[indx]->name);
+    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
   } else {
     indx = 0;
     prev = 0;
 
-    fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
+    fputs("\x1b[3H\x1b[J\x1b[?25l", stdout);
     for(i=0;i<ndir;i++){
       if(strstr(files[i]->name, out) != NULL){
+        fputs(files[i]->fmt, stdout);
         puts(files[i]->name);
       }
     }
@@ -163,13 +172,14 @@ void mod(int newmode){
   mode = newmode;
   
   if(newmode == view){
-    fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
+    fputs("\x1b[3H\x1b[J\x1b[?25l", stdout);
     for(i=0;i<ndir;i++){
+      fputs(files[i]->fmt, stdout);
       puts(files[i]->name);
     }
     put(line);
   } else if(newmode == search){
-    printf("\x1b[%i;H\x1b[0m%s\x1b[%i;1H", indx+1, files[indx]->name, ws.ws_row);
+    printf("\x1b[%i;H%s%s\x1b[%i;1H", indx+3, files[indx]->fmt, files[indx]->name, ws.ws_row);
     ledit("\x1b[?25hsearch: ", 8);
     mod(view);
   }
