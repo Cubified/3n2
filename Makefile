@@ -4,7 +4,7 @@ CC=gcc
 
 LIBS=
 CFLAGS=-Os -pipe -s
-DEBUGCFLAGS=-Og -pipe -g -pedantic -Wall -Wextra -Werror
+DEBUGCFLAGS=-Og -pipe -g -Wall -Wextra
 
 INPUT=3n2.c
 OUTPUT=3n2

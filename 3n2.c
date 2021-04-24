@@ -8,6 +8,7 @@
  *  - Preview
  *  - Column view
  *  - Sorting
+ *  - Remove unncessary printfs/repeated puts calls
  */
 
 #include <stdio.h>
@@ -22,6 +23,8 @@
 
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
+
+#include "quadsort/quadsort.h"
 
 /*
  * GLOBAL VARIABLES
@@ -73,6 +76,7 @@ struct winsize ws;
  * DEFINITIONS
  */
 
+int  cmp();
 void gen();
 void put();
 void raw();
@@ -85,6 +89,13 @@ void end();
  * FUNCTION
  * BODIES
  */
+
+int cmp(const void *a, const void *b){
+  int a_isdir = S_ISDIR((*(file**)a)->stat->st_mode),
+      b_isdir = S_ISDIR((*(file**)b)->stat->st_mode);
+  if(a_isdir != b_isdir) return (b_isdir - a_isdir);
+  return strcmp((*(file**)a)->name, (*(file**)b)->name);
+}
 
 void gen(file **f, struct dirent *ent){
   *f = malloc(sizeof(file));
@@ -115,27 +126,27 @@ void put(int type){
     dir = opendir(".");
     getcwd(cwd, sizeof(cwd));
 
-    fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
-    puts(cwd);
-    puts("");
     while((ent=readdir(dir))){
       if(ent->d_name[0] == '.') continue;
       if(ndir > szfl) files = realloc(files, (szfl=ndir*2));
-
       if(ndir < oldndir){
         CLEAN(files[ndir]);
       }
+      gen(&files[ndir++], ent);
+    }
+    closedir(dir);
 
-      gen(&files[ndir], ent);
+    quadsort(files, ndir, sizeof(file*), cmp);
 
-      fputs(files[ndir]->fmt, stdout);
-      puts(files[ndir]->name);
-      ndir++;
+    fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
+    puts(cwd);
+    puts("");
+    for(i=0;i<ndir;i++){
+      fputs(files[i]->fmt, stdout);
+      puts(files[i]->name);
     }
     printf("\x1b[%i;1H%s\x1b[7m%s\x1b[0m", indx+3, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
-
-    closedir(dir);
   } else if(type == line){
     printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name);
     fflush(stdout);
