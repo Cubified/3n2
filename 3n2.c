@@ -7,7 +7,6 @@
  *  - Return value
  *  - Preview
  *  - Column view
- *  - Sorting
  *  - Remove unncessary printfs/repeated puts calls
  */
 
@@ -18,13 +17,16 @@
 #include <termios.h>
 #include <signal.h>
 #include <limits.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-#include "quadsort/quadsort.h"
+#include "quadsort.h"
+
+#include "config.h"
 
 /*
  * GLOBAL VARIABLES
@@ -32,11 +34,6 @@
  */
 
 #define SZFL_INIT 64
-
-#define DIRECTORY "\x1b[36m "
-#define EXECUTABLE "\x1b[32m "
-#define REGULAR "\x1b[0m "
-
 #define CLEAN(f) free(f->name);free(f->stat);free(f)
 
 enum {
@@ -66,6 +63,8 @@ int mode = view,
     indx = 0,
     prev = 0,
     ndir = 0,
+    fcnt = 0,
+    dcnt = 0,
     szfl = SZFL_INIT;
 file **files;
 struct termios tio, tio_raw;
@@ -105,10 +104,13 @@ void gen(file **f, struct dirent *ent){
   if(S_ISDIR((*f)->stat->st_mode)){
     (*f)->fmt = DIRECTORY;
     strcat((*f)->name, "/");
+    dcnt++;
   } else if((*f)->stat->st_mode & 0100){
     (*f)->fmt = EXECUTABLE;
+    fcnt++;
   } else {
     (*f)->fmt = REGULAR;
+    fcnt++;
   }
 }
 
@@ -117,12 +119,15 @@ void put(int type){
   char cwd[PATH_MAX];
   DIR *dir;
   struct dirent *ent;
+  struct tm *ts;
 
   if(type == full){
     oldndir = ndir;
     indx = 0;
     prev = 0;
     ndir = 0;
+    fcnt = 0;
+    dcnt = 0;
     dir = opendir(".");
     getcwd(cwd, sizeof(cwd));
 
@@ -138,19 +143,22 @@ void put(int type){
 
     quadsort(files, ndir, sizeof(file*), cmp);
 
-    fputs("\x1b[2J\x1b[0H\x1b[?25l", stdout);
-    puts(cwd);
+    printf("\x1b[2J\x1b[0H\x1b[?25l" CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
+    for(i=0;i<ws.ws_col;i++){
+      printf(SEPARATOR);
+    }
     puts("");
     for(i=0;i<ndir;i++){
       fputs(files[i]->fmt, stdout);
       puts(files[i]->name);
     }
-    printf("\x1b[%i;1H%s\x1b[7m%s\x1b[0m", indx+3, files[indx]->fmt, files[indx]->name);
-    fflush(stdout);
+    put(line);
   } else if(type == line){
-    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name);
+    ts = localtime(&files[indx]->stat->st_mtime);
+    strftime(cwd, sizeof(cwd), "%a %Y-%m-%d %H:%M:%S %Z", ts);
+    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m\x1b[%i;1H\x1b[2K" TIMETEXT "Last modified: " TIME "%s", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name, ws.ws_row, cwd);
     fflush(stdout);
-  } else {
+  } else { /* Search */
     indx = 0;
     prev = 0;
 
