@@ -7,6 +7,7 @@
  *  - Return value
  *  - Remove unncessary printfs/repeated puts calls
  *  - Performance improvements/optimizations
+ *  - Hex viewer for binary files
  */
 
 #include <stdio.h>
@@ -23,7 +24,7 @@
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-//#include "quadsort/quadsort.h"
+#include "quadsort/quadsort.h"
 
 #include "config.h"
 
@@ -143,8 +144,8 @@ void put(int type){
     }
     closedir(dir);
 
-    //quadsort(files, ndir, sizeof(file*), cmp);
-    qsort(files, ndir, sizeof(file*), cmp);
+    quadsort(files, ndir, sizeof(file*), cmp);
+    // qsort(files, ndir, sizeof(file*), cmp); Same functionality, compiles much more quickly during development
 
     printf("\x1b[2J\x1b[0H\x1b[?25l " CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
     for(i=0;i<ws.ws_col;i++){
