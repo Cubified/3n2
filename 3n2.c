@@ -24,7 +24,7 @@
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-#include "quadsort.h"
+#include "quadsort/quadsort.h"
 
 #include "config.h"
 
@@ -159,16 +159,21 @@ void put(int type){
     printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m\x1b[%i;1H\x1b[2K" TIMETEXT "Last modified: " TIME "%s", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name, ws.ws_row, cwd);
     fflush(stdout);
   } else { /* Search */
-    indx = 0;
     prev = 0;
-
+    oldndir = 0;
     fputs("\x1b[3H\x1b[J\x1b[?25l", stdout);
     for(i=0;i<ndir;i++){
       if(strstr(files[i]->name, out) != NULL){
         fputs(files[i]->fmt, stdout);
-        puts(files[i]->name);
+        if(indx == i){
+          oldndir = 1;
+          fputs("\x1b[7m", stdout);
+        }
+        fputs(files[i]->name, stdout);
+        puts("\x1b[0m");
       }
     }
+    if(!oldndir) indx = 0;
     printf("\x1b[%i;1H", ws.ws_row);
     fflush(stdout);
   }
