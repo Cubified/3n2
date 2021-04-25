@@ -5,9 +5,8 @@
  *  - Viewport (scrolling)
  *  - Moving during search
  *  - Return value
- *  - Preview
- *  - Column view
  *  - Remove unncessary printfs/repeated puts calls
+ *  - Performance improvements/optimizations
  */
 
 #include <stdio.h>
@@ -182,17 +181,30 @@ void put(int type){
         printf(REGULAR "%s\x1b[E\x1b[%iG", ent->d_name, colsize+1);
       }
       fflush(stdout);
+      closedir(dir);
     } else {
       fp = fopen(files[indx]->name, "r");
       printf("\x1b[0m");
       for(i=0;i<ws.ws_row-3;i++){
         if(feof(fp)) cwd[0] = '\0';
         else fgets(cwd, colsize, fp);
+        /*
+        while(cwd[oldndir]){
+          if(!(cwd[oldndir] >= ' ' &&
+               cwd[oldndir] <= '~')){
+            cwd[oldndir] = ' ';
+          }
+
+          oldndir++;
+        }*/
         printf("\x1b[%i;%iH\x1b[K%s", i+3, colsize+2, cwd);
       }
     }
 
     fflush(stdout);
+  } else if(type == SIGWINCH){
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
+    put(full);
   } else { /* Search */
     prev = 0;
     oldndir = 0;
@@ -334,9 +346,10 @@ void end(){
  */
 
 int main(){
-  signal(SIGTERM, end);
-  signal(SIGQUIT, end);
-  signal(SIGINT,  end);
+  signal(SIGTERM,  end);
+  signal(SIGQUIT,  end);
+  signal(SIGINT,   end);
+  signal(SIGWINCH, put);
 
   raw();
   put(full);
