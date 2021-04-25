@@ -24,7 +24,7 @@
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-#include "quadsort/quadsort.h"
+//#include "quadsort/quadsort.h"
 
 #include "config.h"
 
@@ -45,7 +45,8 @@ enum {
   srch = 0,
   srch_final = 1,
   full = 2,
-  line = 3
+  line = 3,
+  colm = 4
 };
 
 enum {
@@ -78,6 +79,7 @@ struct winsize ws;
 int  cmp();
 void gen();
 void put();
+void col();
 void raw();
 void mod();
 void dir();
@@ -115,9 +117,10 @@ void gen(file **f, struct dirent *ent){
 }
 
 void put(int type){
-  int i, oldndir;
+  int i, oldndir, colsize = ws.ws_col / 2;
   char cwd[PATH_MAX];
   DIR *dir;
+  FILE *fp;
   struct dirent *ent;
   struct tm *ts;
 
@@ -141,11 +144,12 @@ void put(int type){
     }
     closedir(dir);
 
-    quadsort(files, ndir, sizeof(file*), cmp);
+    //quadsort(files, ndir, sizeof(file*), cmp);
+    qsort(files, ndir, sizeof(file*), cmp);
 
-    printf("\x1b[2J\x1b[0H\x1b[?25l" CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
+    printf("\x1b[2J\x1b[0H\x1b[?25l " CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
     for(i=0;i<ws.ws_col;i++){
-      printf(SEPARATOR);
+      printf(HSEPARATOR);
     }
     puts("");
     for(i=0;i<ndir;i++){
@@ -153,10 +157,41 @@ void put(int type){
       puts(files[i]->name);
     }
     put(line);
+    put(colm);
   } else if(type == line){
     ts = localtime(&files[indx]->stat->st_mtime);
     strftime(cwd, sizeof(cwd), "%a %Y-%m-%d %H:%M:%S %Z", ts);
-    printf("\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m\x1b[%i;1H\x1b[2K" TIMETEXT "Last modified: " TIME "%s", prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name, ws.ws_row, cwd);
+    printf(
+      "\x1b[%i;1H\x1b[0m%s%s\x1b[%i;1H%s\x1b[7m%s\x1b[0m\x1b[%i;%iH\x1b[1K\x1b[G" TIMETEXT "Last modified: " TIME "%s",
+      prev+3, files[prev]->fmt, files[prev]->name, indx+3, files[indx]->fmt, files[indx]->name, ws.ws_row, colsize, cwd
+    );
+    put(colm);
+  } else if(type == colm) {
+    printf("\x1b[3;%iH" SEPCOLOR, colsize);
+    for(i=3;i<=ws.ws_row;i++){
+      printf(VSEPARATOR "\x1b[K\x1b[B\x1b[D");
+    }
+    printf("\x1b[1;%iH\x1b[K" VSEPARATOR CWD " %s", colsize, files[indx]->name);
+
+    if(S_ISDIR(files[indx]->stat->st_mode)){
+      dir = opendir(files[indx]->name);
+      printf("\x1b[3;%iH", colsize+1);
+      while((ent=readdir(dir))){
+        if(ent->d_name[0] == '.') continue;
+
+        printf(REGULAR "%s\x1b[E\x1b[%iG", ent->d_name, colsize+1);
+      }
+      fflush(stdout);
+    } else {
+      fp = fopen(files[indx]->name, "r");
+      printf("\x1b[0m");
+      for(i=0;i<ws.ws_row-3;i++){
+        if(feof(fp)) cwd[0] = '\0';
+        else fgets(cwd, colsize, fp);
+        printf("\x1b[%i;%iH\x1b[K%s", i+3, colsize+2, cwd);
+      }
+    }
+
     fflush(stdout);
   } else { /* Search */
     prev = 0;
@@ -289,7 +324,7 @@ void end(){
 
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &tio);
 
-  fputs("\x1b[0H\x1b[2J\x1b[?25h", stdout);
+  fputs("\x1b[0m\x1b[0H\x1b[2J\x1b[?25h", stdout);
 
   exit(0);
 }

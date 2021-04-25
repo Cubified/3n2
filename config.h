@@ -19,7 +19,8 @@
 #define DIRCOUNT "\x1b[38;2;197;155;118m"
 #define DIRNUMBER "\x1b[38;2;160;169;76m"
 #define SEPCOLOR  "\x1b[38;2;128;128;128m"
-#define SEPARATOR "─"
+#define HSEPARATOR "─"
+#define VSEPARATOR "|"
 
 // Metadata
 #define TIMETEXT "\x1b[38;2;49;94;91m"
