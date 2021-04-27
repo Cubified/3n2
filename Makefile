@@ -2,8 +2,10 @@ all: 3n2
 
 CC=gcc
 
+FEATURES=$(shell ./features.sh)
+
 LIBS=
-CFLAGS=-Os -pipe -s
+CFLAGS=-Os -pipe -s $(FEATURES)
 DEBUGCFLAGS=-Og -pipe -g -Wall -Wextra
 
 INPUT=3n2.c

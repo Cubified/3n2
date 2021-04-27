@@ -7,7 +7,7 @@
  *  - Return value
  *  - Remove unncessary printfs/repeated puts calls
  *  - Performance improvements/optimizations
- *  - Hex viewer for binary files
+ *  - Hook into other applications for column view (affine, vex, bat, etc.)
  */
 
 #include <stdio.h>
@@ -24,7 +24,7 @@
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-#include "quadsort/quadsort.h"
+// #include "quadsort/quadsort.h"
 
 #include "config.h"
 
@@ -35,6 +35,10 @@
 
 #define SZFL_INIT 64
 #define CLEAN(f) free(f->name);free(f->stat);free(f)
+#define DOTEST(cmd) \
+  sprintf(cwd, cmd, files[indx]->name); \
+  fp = popen(cwd, "r"); \
+  if(pclose(fp) == 0) goto run;
 
 enum {
   view,
@@ -79,7 +83,6 @@ struct winsize ws;
 int  cmp();
 void gen();
 void put();
-void col();
 void raw();
 void mod();
 void dir();
@@ -144,8 +147,8 @@ void put(int type){
     }
     closedir(dir);
 
-    quadsort(files, ndir, sizeof(file*), cmp);
-    // qsort(files, ndir, sizeof(file*), cmp); Same functionality, compiles much more quickly during development
+    // quadsort(files, ndir, sizeof(file*), cmp);
+    qsort(files, ndir, sizeof(file*), cmp);
 
     printf("\x1b[2J\x1b[0H\x1b[?25l " CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
     for(i=0;i<ws.ws_col;i++){
@@ -184,22 +187,28 @@ void put(int type){
       fflush(stdout);
       closedir(dir);
     } else {
-      fp = fopen(files[indx]->name, "r");
+#ifdef HAS_AFFINE
+      DOTEST("affine %s");
+#endif
+
+#ifdef HAS_BAT
+      DOTEST("bat -Pf --style=plain %s");
+#endif
+
+#ifdef HAS_VEX
+      DOTEST("vex %s n");
+#endif
+
+      sprintf(cwd, "cat %s", files[indx]->name);
+run:;
+      fp = popen(cwd, "r");
       printf("\x1b[0m");
       for(i=0;i<ws.ws_row-3;i++){
         if(feof(fp)) cwd[0] = '\0';
         else fgets(cwd, colsize, fp);
-        /*
-        while(cwd[oldndir]){
-          if(!(cwd[oldndir] >= ' ' &&
-               cwd[oldndir] <= '~')){
-            cwd[oldndir] = ' ';
-          }
-
-          oldndir++;
-        }*/
         printf("\x1b[%i;%iH\x1b[K%s", i+3, colsize+2, cwd);
       }
+      pclose(fp);
     }
 
     fflush(stdout);
