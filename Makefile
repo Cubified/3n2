@@ -6,7 +6,7 @@ FEATURES=$(shell ./features.sh)
 
 LIBS=
 CFLAGS=-Os -pipe -s $(FEATURES)
-DEBUGCFLAGS=-Og -pipe -g -Wall -Wextra
+DEBUGCFLAGS=-Og -pipe -g -Wall -Wextra $(FEATURES)
 
 INPUT=3n2.c
 OUTPUT=3n2
