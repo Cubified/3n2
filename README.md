@@ -6,7 +6,7 @@ Currently still a work in progress.
 
 ### Demo
 
-To-do
+![Demo](https://github.com/Cubified/3n2/blob/main/demo.gif)
 
 ### Features
 
@@ -24,3 +24,10 @@ To-do
 
      $ make
      $ ./3n2
+
+### To-Do
+
+- Viewport (scrolling)
+- Hex viewer for binary files
+- Caching
+- Better search functionality

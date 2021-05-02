@@ -7,7 +7,6 @@
  *  - Return value
  *  - Remove unncessary printfs/repeated puts calls
  *  - Performance improvements/optimizations
- *  - Hook into other applications for column view (affine, vex, bat, etc.)
  */
 
 #include <stdio.h>
