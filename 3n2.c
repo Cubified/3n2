@@ -18,14 +18,13 @@
 #include <signal.h>
 #include <limits.h>
 #include <time.h>
-#include <pty.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 
 #define LEDIT_HIGHLIGHT put
 #include "ledit.h"
 
-// #include "quadsort/quadsort.h"
+#include "quadsort/quadsort.h"
 
 #include "config.h"
 
@@ -36,10 +35,6 @@
 
 #define SZFL_INIT 64
 #define CLEAN(f) free(f->name);free(f->stat);free(f)
-#define DOTEST(cmd) \
-  sprintf(cwd, cmd, files[indx]->name); \
-  fp = popen(cwd, "r"); \
-  if(WEXITSTATUS(pclose(fp)) == 0) goto run;
 
 enum {
   view,
@@ -65,20 +60,16 @@ typedef struct {
   struct stat *stat;
 } file;
 
-extern char **environ;
-
 int mode = view,
     indx = 0,
     prev = 0,
     ndir = 0,
     fcnt = 0,
     dcnt = 0,
-    szfl = SZFL_INIT,
-    pty_m;
-pid_t pty;
+    szfl = SZFL_INIT;
 file **files;
 struct termios tio, tio_raw;
-struct winsize ws, ws_pty;
+struct winsize ws;
 
 /*
  * STATIC
@@ -125,8 +116,7 @@ void gen(file **f, struct dirent *ent){
 }
 
 void put(int type){
-  int i, oldndir,
-      colsize = ws.ws_col / 2;
+  int i, oldndir, colsize = ws.ws_col / 2;
   char cwd[PATH_MAX];
   DIR *dir;
   FILE *fp;
@@ -153,8 +143,8 @@ void put(int type){
     }
     closedir(dir);
 
-    // quadsort(files, ndir, sizeof(file*), cmp);
-    qsort(files, ndir, sizeof(file*), cmp);
+    quadsort(files, ndir, sizeof(file*), cmp);
+    // qsort(files, ndir, sizeof(file*), cmp);
 
     printf("\x1b[2J\x1b[0H\x1b[?25l " CWD "%s " DIRCOUNT "(" DIRNUMBER "%i" DIRCOUNT " file%s, " DIRNUMBER "%i" DIRCOUNT " director%s)" SEPCOLOR "\n", cwd, fcnt, (fcnt == 1 ? "" : "s"), dcnt, (dcnt == 1 ? "y" : "ies"));
     for(i=0;i<ws.ws_col;i++){
@@ -193,24 +183,13 @@ void put(int type){
       fflush(stdout);
       closedir(dir);
     } else {
-#ifdef HAS_AFFINE
-      DOTEST("affine %s\n");
-#endif
-
-#ifdef HAS_BAT
-      DOTEST("bat -Pf --style=plain %s\n");
-#endif
-
-#ifdef HAS_VEX
-      DOTEST("vex %s n\n");
-#endif
-
-      sprintf(cwd, "cat %s\n", files[indx]->name);
-run:;
-      write(pty_m, cwd, strlen(cwd));
-      while((oldndir=read(pty_m, cwd, sizeof(cwd))) > 0){
-        printf("%s", cwd);
-        fflush(stdout);
+      sprintf(cwd, "cat %s", files[indx]->name);
+      fp = popen(cwd, "r");
+      printf("\x1b[0m");
+      for(i=0;i<ws.ws_row-3;i++){
+        if(feof(fp)) cwd[0] = '\0';
+        else fgets(cwd, colsize-3, fp);
+        printf("\x1b[%i;%iH\x1b[K%s", i+3, colsize+2, cwd);
       }
     }
 
@@ -247,19 +226,6 @@ void raw(){
   setvbuf(stdout, NULL, _IOFBF, 4096);
 
   ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
-  ws_pty.ws_col = ws.ws_col / 2;
-  ws_pty.ws_row = ws.ws_row;
-  if((pty=forkpty(&pty_m, NULL, NULL, &ws_pty))
-       == -1){
-    puts("\x1b[31mFailed to open pseudoterminal.\x1b[0m");
-    exit(1);
-  } else if(pty == 0){
-    environ = malloc(sizeof(char*)*2);
-    environ[0] = "PS1=magicmagic";
-    environ[1] = NULL;
-    execvp("sh", NULL);
-    _exit(0);
-  }
 
   files = malloc(szfl*sizeof(file));
 }
